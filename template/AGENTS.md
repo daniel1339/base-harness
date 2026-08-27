@@ -123,7 +123,9 @@ cerrar, y `base-harness check` falla en CI cuando un plan no las lleva.
 1. Este archivo, y luego el `AGENTS.md` del area que vas a tocar
 2. `rg` para simbolos y texto exacto
 3. Lecturas pequenas y dirigidas, nunca archivos enteros grandes
-4. Delega las lecturas anchas a un subagente en vez de traerlas a la conversacion
+4. Si tu herramienta tiene subagentes, delega ahi las lecturas anchas en vez
+   de traerlas a la conversacion. Este esqueleto no trae ninguno: se anaden
+   cuando un proyecto real los pida, no por si acaso
 
 ## Git Conventions
 

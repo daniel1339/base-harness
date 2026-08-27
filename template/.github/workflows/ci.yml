@@ -18,14 +18,13 @@ jobs:
       # un arreglo en base-harness llega a todos los proyectos sin tocar
       # ninguno, que es justo lo que una plantilla copiada no consigue.
       #
-      # El token hace falta porque base-harness es privado. Crea un PAT con
-      # permiso de lectura sobre ese repo y guardalo como secreto
-      # BASE_HARNESS_TOKEN. Si algun dia el repo se hace publico, quita el
-      # `x-access-token:...@` y el secreto sobra.
+      # Sin credenciales: el repositorio es publico desde el 2026-08-27. Antes
+      # hacia falta un PAT en un secreto, y eso era un paso manual por proyecto
+      # que rompia el CI del primer dia si nadie se acordaba.
       - name: Traer base-harness
         run: |
           git clone --depth 1 \
-            "https://x-access-token:${{ secrets.BASE_HARNESS_TOKEN }}@github.com/daniel1339/base-harness.git" \
+            https://github.com/daniel1339/base-harness.git \
             "$RUNNER_TEMP/base-harness"
 
       # Las obligaciones de un plan (estimacion, reconocimiento, checklist
@@ -33,4 +32,5 @@ jobs:
       # create-plan. Sin esto, quien no la siga se las salta en silencio, y el
       # sintoma aparece meses despues: un plan cerrado sin nada que medir.
       - name: Los planes traen sus obligaciones
-        run: "$RUNNER_TEMP/base-harness/bin/base-harness" check
+        run: |
+          "$RUNNER_TEMP/base-harness/bin/base-harness" check
