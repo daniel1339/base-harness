@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  # Sin esto, cada herramienta acaba leyendo una version distinta del contrato:
+  # los adaptadores derivan del canonico y nadie se entera hasta que un agente
+  # trabaja con contexto viejo.
+  harness:
+    name: Harness (adaptadores sincronizados)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0        # plan-time.py lee git log
+
+      # Se llama al script directamente y no via `make`: una dependencia menos
+      # en el runner. `make harness-check` sigue siendo el atajo para humanos.
+      - name: Check harness adapters are in sync
+        run: python3 scripts/harness-sync.py --check
+
+      # Las obligaciones de un plan (estimacion, reconocimiento, checklist
+      # KISS/DRY/YAGNI, medicion al cerrar) estan escritas en la skill
+      # create-plan. Sin esto, quien no la siga se las salta en silencio.
+      - name: Check roadmap plans carry their obligations
+        run: python3 scripts/plans-check.py --check
