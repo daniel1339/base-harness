@@ -6,17 +6,31 @@ on:
     branches: [main]
 
 jobs:
-  plans:
+  planes:
     name: Planes (obligaciones y medicion)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 0        # plan-time.py mide el colateral desde git log
+          fetch-depth: 0        # la medicion saca el colateral de git log
+
+      # La herramienta no vive en este repositorio: se trae en el momento. Asi
+      # un arreglo en base-harness llega a todos los proyectos sin tocar
+      # ninguno, que es justo lo que una plantilla copiada no consigue.
+      #
+      # El token hace falta porque base-harness es privado. Crea un PAT con
+      # permiso de lectura sobre ese repo y guardalo como secreto
+      # BASE_HARNESS_TOKEN. Si algun dia el repo se hace publico, quita el
+      # `x-access-token:...@` y el secreto sobra.
+      - name: Traer base-harness
+        run: |
+          git clone --depth 1 \
+            "https://x-access-token:${{ secrets.BASE_HARNESS_TOKEN }}@github.com/daniel1339/base-harness.git" \
+            "$RUNNER_TEMP/base-harness"
 
       # Las obligaciones de un plan (estimacion, reconocimiento, checklist
       # KISS/DRY/YAGNI, medicion al cerrar) estan escritas en la skill
       # create-plan. Sin esto, quien no la siga se las salta en silencio, y el
       # sintoma aparece meses despues: un plan cerrado sin nada que medir.
       - name: Los planes traen sus obligaciones
-        run: python3 scripts/plans-check.py --check
+        run: "$RUNNER_TEMP/base-harness/bin/base-harness" check

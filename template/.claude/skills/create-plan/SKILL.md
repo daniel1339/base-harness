@@ -53,7 +53,7 @@ cuesta caro descubrir tarde:
 | `1.1b`, `1b.1`, `1.5-bis` | **No**: letras a cualquier lado del punto rompen el parseo |
 | El mismo numero dos veces | **No**: `--step` no sabe a cual de las dos apunta |
 
-Si hace falta meter una tarea en medio, se renumera. `scripts/plans-check.py`
+Si hace falta meter una tarea en medio, se renumera. `base-harness check`
 comprueba las cuatro y bloquea el merge.
 
 ## La seccion `## Bloqueadores`
@@ -116,7 +116,7 @@ se crea**:
 horas = tareas x ritmo medido x factor / 60
 ```
 
-**El ritmo no se inventa**: sale de `plan-time.py --ritmo`, que promedia los
+**El ritmo no se inventa**: sale de `base-harness ritmo`, que promedia los
 planes ya cerrados de este repositorio.
 
 > **Mientras no haya dos planes cerrados aqui**, `--ritmo` no tiene con que
@@ -238,7 +238,7 @@ Un requerimiento es un plan. Los que forman la hoja de ruta llevan en su
 - Fase: 2
 ```
 
-Esa marca es lo unico que hace que `plans-check.py` los **bloquee** en CI; el
+Esa marca es lo unico que hace que `base-harness check` los **bloquee** en CI; el
 resto solo se reportan. Sirve para encender la puerta plan a plan en vez de
 dejar el repo en rojo el primer dia, que es como se acaba desactivando una
 comprobacion.

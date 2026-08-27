@@ -1,59 +1,72 @@
 # base-harness
 
-El esqueleto que hace que un proyecto se pueda desarrollar con agentes y que
-**cada plan diga lo que costo sin que nadie apunte nada**. Se instala en
-cualquier proyecto, del lenguaje que sea.
+Planificar y medir, instalado **una vez por maquina**. Hace que cualquier
+proyecto pueda desarrollarse con agentes y que **cada plan diga lo que costo
+sin que nadie apunte nada**.
 
 ```bash
-./bootstrap.sh /ruta/al/proyecto
+git clone https://github.com/daniel1339/base-harness && cd base-harness
+./install.sh                 # solo necesita python3: ni pip, ni pipx, ni uv
+
+cd /mi/proyecto
+base-harness init
 ```
 
-Nueve archivos. Dos scripts. Ningun generador.
+## La idea: leer va al repo, ejecutar va a la maquina
+
+Lo que un agente tiene que **leer** vive en el proyecto. Lo que solo se
+**ejecuta** vive en la herramienta. Esa linea es todo el diseño.
+
+| Vive en el proyecto | Por que |
+|---|---|
+| `AGENTS.md` | Es el contrato. Lo lee cada IA en cada turno |
+| `CLAUDE.md` | Una linea: `@AGENTS.md` |
+| `.claude/skills/create-plan`, `plan-task` | Procedimientos que se leen bajo demanda |
+| `.github/workflows/ci.yml` | Configuracion de CI, que es del repositorio |
+
+Seis archivos, y ninguno es codigo que mantener. **La medicion y las
+comprobaciones no estan ahi**: estan en `~/.local/share/base-harness`, asi que
+un arreglo aqui llega a todos los proyectos con `git pull && ./install.sh`, sin
+tocar ninguno. Eso es lo que una plantilla copiada no consigue.
 
 ## Un contrato, sin adaptadores
 
 `AGENTS.md` es el contrato y **no tiene copias**. Codex, Cursor, Zed, Aider y
 las demas lo leen de forma nativa. Claude Code lee `CLAUDE.md`, asi que el
-repositorio lleva un `CLAUDE.md` de **una linea**:
+proyecto lleva un `CLAUDE.md` de **una linea**: `@AGENTS.md`. Eso es todo el
+adaptador que hay, y no cambia nunca, porque su contenido no depende de lo que
+diga `AGENTS.md`.
+
+Las skills viven **una sola vez**, en `.claude/skills/`. Claude Code las
+registra por estar en esa ruta; cualquier otra herramienta llega a ellas porque
+`AGENTS.md` trae una tabla que dice cual leer y cuando. No se copian a
+`.cursor/`, ni a `.agents/`, ni a ningun sitio: una copia por herramienta
+deriva de las demas, y a partir de ahi cada agente trabaja con una version
+distinta sin que nadie lo note.
+
+Contrapartida honesta: un import puede fallar en silencio —el agente arranca
+sin contexto y no avisa—. Se comprueba una vez, preguntandole que dice
+`AGENTS.md`. Diez segundos contra un generador permanente.
+
+## Ordenes
 
 ```
-@AGENTS.md
+base-harness init [ruta]     escribe el contrato y las skills en un proyecto
+base-harness upgrade [ruta]  refresca lo que es de la herramienta; nunca AGENTS.md
+base-harness check           falla si un plan no trae sus obligaciones (CI)
+base-harness planes          lo mismo, informativo
+base-harness time <slug>     lo que costo un plan
+base-harness ritmo           el ritmo real de los planes cerrados
+base-harness donde           que rutas esta usando
 ```
 
-Eso es todo el "adaptador" que hay, y no cambia nunca: su contenido no depende
-de lo que diga `AGENTS.md`. Si manana aparece una herramienta que quiere su
-propio archivo, es otra linea, no otro generador.
-
-Lo mismo con las skills. Viven **una sola vez** en `.claude/skills/`. Claude
-Code las registra por estar en esa ruta; cualquier otra herramienta llega a
-ellas porque `AGENTS.md` trae una tabla que dice cual leer y cuando. No se
-copian a `.cursor/`, ni a `.agents/`, ni a ningun sitio.
-
-> El diseno anterior generaba adaptadores para cinco herramientas con un script
-> de 240 lineas, un hook y un job de CI. Un proyecto que usa una o dos IAs
-> pagaba mantener sincronizados archivos que nadie lee — y el dia que CI se pone
-> rojo por uno de esos, lo que se apaga es la comprobacion entera. Un puntero de
-> una linea hace el mismo trabajo.
-
-Contrapartida honesta: un import puede fallar en silencio —Claude arranca sin
-contexto y no avisa—. Se comprueba una vez, preguntandole al agente que dice
-`AGENTS.md`. Una comprobacion de diez segundos contra un generador permanente.
-
-## Que instala
-
-| | Que hace |
-|---|---|
-| `AGENTS.md` | El contrato. Lo unico que hay que rellenar |
-| `CLAUDE.md` | Una linea: `@AGENTS.md` |
-| `scripts/plan-time.py` | Mide lo que costo un plan y el ritmo real de los cerrados |
-| `scripts/plans-check.py` | Puerta de CI: falla si un plan no trae estimacion, o si uno cerrado no trae su medicion |
-| `.claude/skills/create-plan` | Como se escribe un plan: estructura, numeracion, estimacion |
-| `.claude/skills/plan-task` | Como se ejecuta y se cierra una tarea con evidencia |
-| `.github/workflows/ci.yml`, `Makefile`, `.gitignore` | El andamiaje |
+`init` no pisa nada: si un archivo ya existe, para y lo dice. `upgrade` solo
+toca lo que es de la herramienta y **nunca** `AGENTS.md` ni `.gitignore`, que
+los ha escrito una persona.
 
 ## Como mide el tiempo
 
-No hay cronometro y no se mide el reloj. Salen de **dos relojes que ya
+No hay cronometro y no se mide el reloj. Sale de **dos relojes que ya
 funcionan**: la hora que `pacto exec` deja en cada tarea cerrada, y la que
 `git` deja en cada commit. Cada hueco entre dos senales es una de tres cosas:
 
@@ -71,6 +84,8 @@ Limite que hay que conocer: **pensar no deja commits**. Un rato largo leyendo
 codigo se ve igual que una comida. Por eso la columna se llama "sin actividad"
 y no "pausa", y por eso la cifra es un **suelo**, no un total.
 
+Sin repositorio git no hay colateral: `init` avisa si el destino no lo es.
+
 ## Las tres cosas que no se recuperan despues
 
 Todo lo demas se puede anadir tarde —la medicion es retroactiva, lee timestamps
@@ -87,7 +102,7 @@ que ya estan en `tasks.md` y en `git log`—. Estas tres no:
 ## El ritmo es lo unico que no se puede plantillar
 
 `horas = tareas x ritmo x factor / 60`. El ritmo sale de los planes ya cerrados
-**de ese repositorio**, con `plan-time.py --ritmo`. Un monorepo grande y un
+**de ese repositorio**, con `base-harness ritmo`. Un monorepo grande y un
 servicio pequeno no tienen el mismo.
 
 La plantilla viaja con **5,0 min/tarea prestados** —medidos sobre 71 tareas en
@@ -96,25 +111,29 @@ cierres dos planes propios, recalcula y borra el prestamo.
 
 ## Idioma
 
-Los planes se leen en castellano: `plan-time.py` clasifica las tareas en
-decidir / construir / verificar por las palabras que usan. Traducirlo es
-cambiar el bloque `PALABRA_*` del principio del script — y hay que hacerlo,
-porque no traducirlo **no da error**: mete todo en "construir" y produce un
-desglose creible y vacio.
+Los planes se leen en castellano: la clasificacion en decidir / construir /
+verificar sale de las palabras que usan las tareas. Traducirlo es cambiar el
+bloque `PALABRA_*` de `base_harness/plan_time.py` — y hay que hacerlo, porque
+no traducirlo **no da error**: mete todo en "construir" y produce un desglose
+creible y vacio.
 
 ## Lo que deliberadamente NO trae
 
+- **Nada del lenguaje del proyecto.** El CI que instala solo comprueba planes:
+  no hay tests, ni linter, ni dependencias. Eso se anade por proyecto, porque
+  un `pytest` y un `npm test` no se parecen en nada.
 - **Subagentes.** Se anaden cuando el repo tiene superficie que valga la pena
   delegar; el primero que se echa de menos es uno que busque en los planes, y
   no antes de unos 30.
 - **Reconocimiento automatico.** Depende de como este organizado el proyecto.
   La tarea de reconocimiento si viene en `create-plan`.
-- **Declaracion de capacidades.** `plans-check.py` trae el hueco comentado: se
+- **Declaracion de capacidades.** `plans_check.py` trae el hueco comentado: se
   activa cuando el proyecto tenga un sitio donde declararlas. Una comprobacion
   que exige texto que no apunta a ninguna parte se acaba desactivando.
 
-## Contrapartida
+## Estado
 
-Esto es una plantilla que se copia, no un paquete. Si arreglas `plan-time.py`
-aqui, los proyectos ya creados no se enteran. A esta escala compensa; con diez
-proyectos habria que convertirlo en dependencia.
+Los dos scripts vienen de un monorepo donde ya midieron 2 planes y 71 tareas.
+La version recortada esta verificada sobre proyectos vacios, pero **todavia no
+se ha cerrado ningun plan con ella**: el primero dira si el ritmo prestado
+sirve.

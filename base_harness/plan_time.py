@@ -40,8 +40,20 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+# El proyecto lo fija el CLI antes de llamar a `main`. Por defecto, el
+# directorio actual: asi `python3 -m base_harness.plan_time` sigue funcionando
+# desde la raiz de un proyecto sin pasar por el CLI.
+PROG = "base-harness time"
+
+ROOT = Path.cwd()
 PLANS = ROOT / ".pacto" / "plans"
+
+
+def configurar(root: Path) -> None:
+    """Fija sobre que proyecto se trabaja. La llama `bin/base-harness`."""
+    global ROOT, PLANS
+    ROOT = root
+    PLANS = root / ".pacto" / "plans"
 
 # `pacto exec` deja esta linea al cerrar una tarea. El `[N.M]` del principio no
 # lo pone pacto: es la convencion de la skill `plan-task`, y es lo unico que
@@ -297,14 +309,14 @@ def autotest() -> int:
     return 1 if fallos else 0
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog=PROG)
     ap.add_argument("slug", nargs="?")
     ap.add_argument("--umbral", type=int, default=60,
                     help="minutos sin actividad a partir de los cuales no se cuenta (por defecto 60)")
     ap.add_argument("--ritmo", action="store_true", help="ritmo real de los planes ya cerrados")
     ap.add_argument("--autotest", action="store_true", help="comprueba la aritmetica del reparto")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     if args.autotest:
         return autotest()

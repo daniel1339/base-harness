@@ -102,7 +102,7 @@ pacto exec current <slug> --root .pacto/plans --step 1.2 \
 
 **La evidencia empieza por `[N.M]`.** `pacto` no guarda a que tarea pertenece
 cada linea, asi que sin ese prefijo la seccion de evidencia es una lista de
-horas huerfanas: no se puede leer, y `plan-time.py` no puede decir si el tiempo
+horas huerfanas: no se puede leer, y `base-harness time` no puede decir si el tiempo
 se fue en decidir o en construir. Son cinco caracteres y es la unica forma de
 saberlo.
 
@@ -125,7 +125,7 @@ arregla, o se registra como impedimento.
 Antes de moverlo, registrar lo que costo de verdad:
 
 ```bash
-python3 scripts/plan-time.py <slug>
+base-harness time <slug>
 ```
 
 Y escribir el resultado junto a la estimacion, en los metadatos de `tasks.md`:
@@ -135,7 +135,7 @@ Y escribir el resultado junto a la estimacion, en los metadatos de `tasks.md`:
 ```
 
 Sin esa linea el plan se cierra y la informacion se pierde: al siguiente que
-estime le queda la misma intuicion que habia antes. `plans-check.py` falla en CI
+estime le queda la misma intuicion que habia antes. `base-harness check` falla en CI
 si un plan en `done` no la lleva.
 
 Cuando todas las fases esten marcadas, `pacto status --root .pacto/plans

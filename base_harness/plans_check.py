@@ -22,8 +22,20 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+# El proyecto lo fija el CLI antes de llamar a `main`. Por defecto, el
+# directorio actual: asi `python3 -m base_harness.plan_time` sigue funcionando
+# desde la raiz de un proyecto sin pasar por el CLI.
+PROG = "base-harness check"
+
+ROOT = Path.cwd()
 PLANS = ROOT / ".pacto" / "plans"
+
+
+def configurar(root: Path) -> None:
+    """Fija sobre que proyecto se trabaja. La llama `bin/base-harness`."""
+    global ROOT, PLANS
+    ROOT = root
+    PLANS = root / ".pacto" / "plans"
 
 # Cada obligacion: como se detecta y por que existe.
 REQUIRED = [
@@ -62,10 +74,10 @@ DISPARA_BLOQUEO = re.compile(r"\bbloquead(?:o|or)\w*\b|\bblock(?:ed|er)\b", re.I
 TAREA_ABIERTA = re.compile(r"^\s*-\s*\[ \] \d+\.\d+.*$", re.M)
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog=PROG)
     ap.add_argument("--check", action="store_true", help="falla si falta algo")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     problems: list[str] = []      # del roadmap: bloquean
     pending: list[str] = []       # del resto: solo se reportan

@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""base-harness: planificar y medir, instalado una vez por maquina.
+
+El proyecto solo se queda con lo que un agente tiene que LEER —el contrato y
+las skills—. Lo que solo se EJECUTA vive aqui, asi que un arreglo en esta
+herramienta llega a todos los proyectos con un `git pull && ./install.sh`, sin
+tocar ninguno.
+
+    base-harness init [ruta]     escribe el contrato y las skills en un proyecto
+    base-harness upgrade [ruta]  refresca lo que es de la herramienta; nunca AGENTS.md
+    base-harness check           falla si un plan no trae sus obligaciones (CI)
+    base-harness planes          lo mismo, informativo
+    base-harness time <slug>     lo que costo un plan
+    base-harness ritmo           el ritmo real de los planes cerrados
+    base-harness donde           que rutas esta usando
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import sys
+from pathlib import Path
+
+# Instalado, `bin/base-harness` es un enlace a la copia de ~/.local/share, y
+# `resolve()` lo sigue: por eso la casa sale sola y no hay que configurarla.
+CASA = Path(os.environ.get("BASE_HARNESS_HOME") or Path(__file__).resolve().parent.parent)
+PLANTILLA = CASA / "template"
+sys.path.insert(0, str(CASA))
+
+from base_harness import plan_time, plans_check  # noqa: E402
+from base_harness.raiz import raiz  # noqa: E402
+
+# Quien es dueño de que. Lo de la herramienta se puede refrescar sin preguntar;
+# lo del proyecto no se toca nunca despues de `init`, porque lo ha escrito una
+# persona y no hay forma de fusionarlo sin perder algo.
+DE_LA_HERRAMIENTA = [
+    ".claude/skills/create-plan/SKILL.md",
+    ".claude/skills/plan-task/SKILL.md",
+    ".github/workflows/ci.yml",
+    "CLAUDE.md",
+]
+DEL_PROYECTO = ["AGENTS.md", ".gitignore"]
+
+
+def archivos_plantilla() -> list[str]:
+    return sorted(
+        p.relative_to(PLANTILLA).as_posix()
+        for p in PLANTILLA.rglob("*")
+        if p.is_file()
+    )
+
+
+def escribir(rel: str, destino: Path) -> None:
+    d = destino / rel
+    d.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(PLANTILLA / rel, d)
+
+
+def cmd_init(destino: Path) -> int:
+    if not destino.is_dir():
+        print(f"no existe el directorio: {destino}")
+        return 1
+
+    choques = [rel for rel in archivos_plantilla() if (destino / rel).exists()]
+    if choques:
+        print("Estos archivos ya existen en el destino. No he tocado nada:")
+        for rel in choques:
+            print(f"  {rel}")
+        print("\nSi vienes de una version anterior, `base-harness upgrade` refresca")
+        print("lo que es de la herramienta y deja AGENTS.md como esta.")
+        return 1
+
+    for rel in archivos_plantilla():
+        escribir(rel, destino)
+    print(f"harness instalado en {destino}")
+    print()
+
+    # git no es opcional: `base-harness time` saca el trabajo colateral de
+    # `git log`. Sin repo solo ve los huecos entre tareas, y esa mitad no se
+    # recupera despues porque los commits que no hiciste no existen.
+    if not (destino / ".git").exists():
+        print("  AVISO: el destino no es un repositorio git.")
+        print("  La medicion saca el trabajo colateral de git log; sin repo mide")
+        print(f'  la mitad. Antes de la primera tarea:  git -C "{destino}" init')
+        print()
+
+    print(AL_TERMINAR)
+    return 0
+
+
+def cmd_upgrade(destino: Path) -> int:
+    if not (destino / "AGENTS.md").is_file():
+        print(f"no parece un proyecto con el harness puesto: {destino}")
+        print("si es nuevo, usa `base-harness init`")
+        return 1
+    cambiados = []
+    for rel in DE_LA_HERRAMIENTA:
+        origen = PLANTILLA / rel
+        if not origen.is_file():
+            continue
+        actual = (destino / rel).read_bytes() if (destino / rel).is_file() else None
+        if actual == origen.read_bytes():
+            continue
+        escribir(rel, destino)
+        cambiados.append(rel)
+    if not cambiados:
+        print("ya estaba al dia")
+        return 0
+    print(f"actualizados {len(cambiados)}:")
+    for rel in cambiados:
+        print(f"  {rel}")
+    print(f"\nSin tocar: {', '.join(DEL_PROYECTO)} — son tuyos.")
+    return 0
+
+
+AL_TERMINAR = """Dos huecos que rellenar:
+
+  1. AGENTS.md   los limites del proyecto ("esto NO lo hacemos"), el mapa del
+                 repo y los comandos. Lo demas ya viene escrito.
+
+  2. .claude/skills/create-plan/SKILL.md   el ritmo prestado (5,0 min/tarea)
+                 se pisa con `base-harness ritmo` al cerrar dos planes.
+
+Y comprueba una sola vez que Claude Code sigue el puntero, preguntandole:
+"segun AGENTS.md, que limites tiene este proyecto?". Si contesta, CLAUDE.md
+esta importando bien y no hay nada mas que mantener.
+
+Luego:  pacto init  (si no lo has hecho)  y  base-harness planes"""
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    orden, resto = argv[0], argv[1:]
+
+    if orden in ("init", "upgrade"):
+        destino = Path(resto[0]).resolve() if resto else Path.cwd()
+        return cmd_init(destino) if orden == "init" else cmd_upgrade(destino)
+
+    proyecto = raiz()
+    plan_time.configurar(proyecto)
+    plans_check.configurar(proyecto)
+
+    if orden == "check":
+        return plans_check.main(["--check"])
+    if orden == "planes":
+        return plans_check.main([])
+    if orden == "time":
+        return plan_time.main(resto)
+    if orden == "ritmo":
+        return plan_time.main(["--ritmo", *resto])
+    if orden == "donde":
+        print(f"  herramienta: {CASA}")
+        print(f"  plantilla:   {PLANTILLA}")
+        print(f"  proyecto:    {proyecto}")
+        print(f"  planes:      {proyecto / '.pacto' / 'plans'}")
+        return 0
+    if orden == "version":
+        print("base-harness (sin version: se instala desde el repo, mira su git log)")
+        return 0
+
+    print(f"orden desconocida: {orden}\n")
+    print(__doc__.strip())
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -68,13 +68,15 @@ esta hecha.
 
 ### Comprobaciones del harness
 
-`make` es un atajo y no esta instalado en todas partes; el script siempre
-funciona, y es lo que llama CI.
+`base-harness` esta instalado en la maquina, no en el repositorio: aqui no hay
+scripts que mantener. Si falta, se instala una vez desde su repo.
 
 ```bash
-python3 scripts/plans-check.py --check     # falla si un plan no trae lo suyo
-python3 scripts/plan-time.py <slug>        # lo que costo un plan
-python3 scripts/plan-time.py --ritmo       # el ritmo real de los cerrados
+base-harness planes            # que le falta a cada plan
+base-harness check             # lo mismo, pero falla (es lo que corre CI)
+base-harness time <slug>       # lo que costo un plan
+base-harness ritmo             # el ritmo real de los planes cerrados
+base-harness donde             # que rutas esta usando, si algo no cuadra
 ```
 
 ## Estimating And Measuring A Plan
@@ -84,11 +86,11 @@ medido al cerrarlo. CI falla si falta cualquiera de las dos.
 
 Nadie arranca un cronometro: sale de dos relojes que ya funcionan —la hora que
 `pacto exec` deja en cada tarea cerrada y la que `git` deja en cada commit—.
-`scripts/plan-time.py` reparte los huecos entre trabajo del plan, trabajo
+`base-harness time` reparte los huecos entre trabajo del plan, trabajo
 colateral y falta de actividad, asi que **las horas de descanso no hay que
 declararlas**.
 
-El ritmo sale de los datos: `plan-time.py --ritmo` promedia los planes ya
+El ritmo sale de los datos: `base-harness ritmo` promedia los planes ya
 cerrados. Mientras no haya dos planes cerrados aqui se usa el ritmo prestado
 que dice la skill `create-plan`, y se escribe en la linea que es prestado.
 
@@ -108,7 +110,7 @@ pidio, solucion minima sin abstracciones anticipadas, y cero duplicacion con lo
 que ya existe — **comprobado buscando, no suponiendo**.
 
 `create-plan` convierte las dos en tareas de cada plan, `plan-task` las exige al
-cerrar, y `scripts/plans-check.py` falla en CI cuando un plan no las lleva.
+cerrar, y `base-harness check` falla en CI cuando un plan no las lleva.
 
 ## Documentation Rules
 
