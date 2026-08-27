@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
-"""base-harness: planificar y medir, instalado una vez por maquina.
+"""base-harness: plan and measure, installed once per machine.
 
-El proyecto solo se queda con lo que un agente tiene que LEER —el contrato y
-las skills—. Lo que solo se EJECUTA vive aqui, asi que un arreglo en esta
-herramienta llega a todos los proyectos con un `git pull && ./install.sh`, sin
-tocar ninguno.
+The project keeps only what an agent has to READ —the contract and the skills—.
+What is merely EXECUTED lives here, so a fix in this tool reaches every project
+with a `git pull && ./install.sh`, without touching any of them.
 
-    base-harness init [ruta]     escribe el contrato y las skills en un proyecto
-    base-harness upgrade [ruta]  refresca lo que es de la herramienta; nunca AGENTS.md
-    base-harness check           falla si un plan no trae sus obligaciones (CI)
-    base-harness planes          lo mismo, informativo
-    base-harness time <slug>     lo que costo un plan
-    base-harness ritmo           el ritmo real de los planes cerrados
-    base-harness donde           que rutas esta usando
+    base-harness init [path]     write the contract and the skills into a project
+    base-harness upgrade [path]  refresh what belongs to the tool; never AGENTS.md
+    base-harness check           fail if a plan is missing its obligations (CI)
+    base-harness plans           the same, informational
+    base-harness time <slug>     what a plan cost
+    base-harness pace            the real pace across closed plans
+    base-harness where           which paths it is using
 """
 
 from __future__ import annotations
@@ -22,146 +21,148 @@ import shutil
 import sys
 from pathlib import Path
 
-# Instalado, `bin/base-harness` es un enlace a la copia de ~/.local/share, y
-# `resolve()` lo sigue: por eso la casa sale sola y no hay que configurarla.
-CASA = Path(os.environ.get("BASE_HARNESS_HOME") or Path(__file__).resolve().parent.parent)
-PLANTILLA = CASA / "template"
-sys.path.insert(0, str(CASA))
+# Once installed, `bin/base-harness` is a link to the copy under
+# ~/.local/share, and `resolve()` follows it: that is why home is found on its
+# own and there is nothing to configure.
+HOME = Path(os.environ.get("BASE_HARNESS_HOME") or Path(__file__).resolve().parent.parent)
+TEMPLATE = HOME / "template"
+sys.path.insert(0, str(HOME))
 
 from base_harness import plan_time, plans_check  # noqa: E402
-from base_harness.raiz import raiz  # noqa: E402
+from base_harness.root import root  # noqa: E402
 
-# Quien es dueño de que. Lo de la herramienta se puede refrescar sin preguntar;
-# lo del proyecto no se toca nunca despues de `init`, porque lo ha escrito una
-# persona y no hay forma de fusionarlo sin perder algo.
-DE_LA_HERRAMIENTA = [
+# Who owns what. What belongs to the tool can be refreshed without asking; what
+# belongs to the project is never touched after `init`, because a person wrote
+# it and there is no way to merge it without losing something.
+TOOL_OWNED = [
     ".claude/skills/create-plan/SKILL.md",
     ".claude/skills/plan-task/SKILL.md",
     ".github/workflows/ci.yml",
     "CLAUDE.md",
 ]
-DEL_PROYECTO = ["AGENTS.md", ".gitignore"]
+PROJECT_OWNED = ["AGENTS.md", ".gitignore"]
 
 
-def archivos_plantilla() -> list[str]:
+def template_files() -> list[str]:
     return sorted(
-        p.relative_to(PLANTILLA).as_posix()
-        for p in PLANTILLA.rglob("*")
-        if p.is_file()
+        path.relative_to(TEMPLATE).as_posix()
+        for path in TEMPLATE.rglob("*")
+        if path.is_file()
     )
 
 
-def escribir(rel: str, destino: Path) -> None:
-    d = destino / rel
-    d.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(PLANTILLA / rel, d)
+def write(relative: str, target: Path) -> None:
+    destination = target / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(TEMPLATE / relative, destination)
 
 
-def cmd_init(destino: Path) -> int:
-    if not destino.is_dir():
-        print(f"no existe el directorio: {destino}")
+def cmd_init(target: Path) -> int:
+    if not target.is_dir():
+        print(f"no such directory: {target}")
         return 1
 
-    choques = [rel for rel in archivos_plantilla() if (destino / rel).exists()]
-    if choques:
-        print("Estos archivos ya existen en el destino. No he tocado nada:")
-        for rel in choques:
-            print(f"  {rel}")
-        print("\nSi vienes de una version anterior, `base-harness upgrade` refresca")
-        print("lo que es de la herramienta y deja AGENTS.md como esta.")
+    clashes = [relative for relative in template_files() if (target / relative).exists()]
+    if clashes:
+        print("These files already exist in the target. Nothing was touched:")
+        for relative in clashes:
+            print(f"  {relative}")
+        print("\nComing from an earlier version? `base-harness upgrade` refreshes")
+        print("what belongs to the tool and leaves AGENTS.md alone.")
         return 1
 
-    for rel in archivos_plantilla():
-        escribir(rel, destino)
-    print(f"harness instalado en {destino}")
+    for relative in template_files():
+        write(relative, target)
+    print(f"harness installed in {target}")
     print()
 
-    # git no es opcional: `base-harness time` saca el trabajo colateral de
-    # `git log`. Sin repo solo ve los huecos entre tareas, y esa mitad no se
-    # recupera despues porque los commits que no hiciste no existen.
-    if not (destino / ".git").exists():
-        print("  AVISO: el destino no es un repositorio git.")
-        print("  La medicion saca el trabajo colateral de git log; sin repo mide")
-        print(f'  la mitad. Antes de la primera tarea:  git -C "{destino}" init')
+    # git is not optional: `base-harness time` gets collateral work out of
+    # `git log`. With no repo it only sees the gaps between tasks, and that half
+    # cannot be recovered later, because the commits you did not make do not
+    # exist.
+    if not (target / ".git").exists():
+        print("  WARNING: the target is not a git repository.")
+        print("  Measurement reads collateral work from git log; with no repo it")
+        print(f'  measures half. Before the first task:  git -C "{target}" init')
         print()
 
-    print(AL_TERMINAR)
+    print(NEXT_STEPS)
     return 0
 
 
-def cmd_upgrade(destino: Path) -> int:
-    if not (destino / "AGENTS.md").is_file():
-        print(f"no parece un proyecto con el harness puesto: {destino}")
-        print("si es nuevo, usa `base-harness init`")
+def cmd_upgrade(target: Path) -> int:
+    if not (target / "AGENTS.md").is_file():
+        print(f"does not look like a project with the harness installed: {target}")
+        print("if it is new, use `base-harness init`")
         return 1
-    cambiados = []
-    for rel in DE_LA_HERRAMIENTA:
-        origen = PLANTILLA / rel
-        if not origen.is_file():
+    changed = []
+    for relative in TOOL_OWNED:
+        source = TEMPLATE / relative
+        if not source.is_file():
             continue
-        actual = (destino / rel).read_bytes() if (destino / rel).is_file() else None
-        if actual == origen.read_bytes():
+        current = (target / relative).read_bytes() if (target / relative).is_file() else None
+        if current == source.read_bytes():
             continue
-        escribir(rel, destino)
-        cambiados.append(rel)
-    if not cambiados:
-        print("ya estaba al dia")
+        write(relative, target)
+        changed.append(relative)
+    if not changed:
+        print("already up to date")
         return 0
-    print(f"actualizados {len(cambiados)}:")
-    for rel in cambiados:
-        print(f"  {rel}")
-    print(f"\nSin tocar: {', '.join(DEL_PROYECTO)} — son tuyos.")
+    print(f"updated {len(changed)}:")
+    for relative in changed:
+        print(f"  {relative}")
+    print(f"\nUntouched: {', '.join(PROJECT_OWNED)} — they are yours.")
     return 0
 
 
-AL_TERMINAR = """Dos huecos que rellenar:
+NEXT_STEPS = """Two gaps to fill in:
 
-  1. AGENTS.md   los limites del proyecto ("esto NO lo hacemos"), el mapa del
-                 repo y los comandos. Lo demas ya viene escrito.
+  1. AGENTS.md   the project's limits ("this we do NOT do"), the repo map and
+                 the commands. The rest is already written.
 
-  2. .claude/skills/create-plan/SKILL.md   el ritmo prestado (5,0 min/tarea)
-                 se pisa con `base-harness ritmo` al cerrar dos planes.
+  2. .claude/skills/create-plan/SKILL.md   the borrowed pace (5.0 min/task)
+                 gets replaced by `base-harness pace` once two plans close.
 
-Y comprueba una sola vez que Claude Code sigue el puntero, preguntandole:
-"segun AGENTS.md, que limites tiene este proyecto?". Si contesta, CLAUDE.md
-esta importando bien y no hay nada mas que mantener.
+And check once that Claude Code follows the pointer, by asking it:
+"according to AGENTS.md, what limits does this project have?". If it answers,
+CLAUDE.md is importing correctly and there is nothing else to maintain.
 
-Luego:  pacto init  (si no lo has hecho)  y  base-harness planes"""
+Then:  pacto init  (if you have not)  and  base-harness plans"""
 
 
 def main(argv: list[str]) -> int:
     if not argv or argv[0] in ("-h", "--help", "help"):
         print(__doc__.strip())
         return 0
-    orden, resto = argv[0], argv[1:]
+    command, rest = argv[0], argv[1:]
 
-    if orden in ("init", "upgrade"):
-        destino = Path(resto[0]).resolve() if resto else Path.cwd()
-        return cmd_init(destino) if orden == "init" else cmd_upgrade(destino)
+    if command in ("init", "upgrade"):
+        target = Path(rest[0]).resolve() if rest else Path.cwd()
+        return cmd_init(target) if command == "init" else cmd_upgrade(target)
 
-    proyecto = raiz()
-    plan_time.configurar(proyecto)
-    plans_check.configurar(proyecto)
+    project = root()
+    plan_time.configure(project)
+    plans_check.configure(project)
 
-    if orden == "check":
+    if command == "check":
         return plans_check.main(["--check"])
-    if orden == "planes":
+    if command == "plans":
         return plans_check.main([])
-    if orden == "time":
-        return plan_time.main(resto)
-    if orden == "ritmo":
-        return plan_time.main(["--ritmo", *resto])
-    if orden == "donde":
-        print(f"  herramienta: {CASA}")
-        print(f"  plantilla:   {PLANTILLA}")
-        print(f"  proyecto:    {proyecto}")
-        print(f"  planes:      {proyecto / '.pacto' / 'plans'}")
+    if command == "time":
+        return plan_time.main(rest)
+    if command == "pace":
+        return plan_time.main(["--pace", *rest])
+    if command == "where":
+        print(f"  tool:     {HOME}")
+        print(f"  template: {TEMPLATE}")
+        print(f"  project:  {project}")
+        print(f"  plans:    {project / '.pacto' / 'plans'}")
         return 0
-    if orden == "version":
-        print("base-harness (sin version: se instala desde el repo, mira su git log)")
+    if command == "version":
+        print("base-harness (unversioned: installed from the repo, check its git log)")
         return 0
 
-    print(f"orden desconocida: {orden}\n")
+    print(f"unknown command: {command}\n")
     print(__doc__.strip())
     return 1
 

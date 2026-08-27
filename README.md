@@ -54,10 +54,10 @@ sin contexto y no avisa—. Se comprueba una vez, preguntandole que dice
 base-harness init [ruta]     escribe el contrato y las skills en un proyecto
 base-harness upgrade [ruta]  refresca lo que es de la herramienta; nunca AGENTS.md
 base-harness check           falla si un plan no trae sus obligaciones (CI)
-base-harness planes          lo mismo, informativo
+base-harness plans          lo mismo, informativo
 base-harness time <slug>     lo que costo un plan
-base-harness ritmo           el ritmo real de los planes cerrados
-base-harness donde           que rutas esta usando
+base-harness pace           el ritmo real de los planes cerrados
+base-harness where           que rutas esta usando
 ```
 
 `init` no pisa nada: si un archivo ya existe, para y lo dice. `upgrade` solo
@@ -102,7 +102,7 @@ que ya estan en `tasks.md` y en `git log`—. Estas tres no:
 ## El ritmo es lo unico que no se puede plantillar
 
 `horas = tareas x ritmo x factor / 60`. El ritmo sale de los planes ya cerrados
-**de ese repositorio**, con `base-harness ritmo`. Un monorepo grande y un
+**de ese repositorio**, con `base-harness pace`. Un monorepo grande y un
 servicio pequeno no tienen el mismo.
 
 La plantilla viaja con **5,0 min/tarea prestados** —medidos sobre 71 tareas en

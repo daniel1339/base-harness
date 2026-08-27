@@ -72,11 +72,11 @@ esta hecha.
 scripts que mantener. Si falta, se instala una vez desde su repo.
 
 ```bash
-base-harness planes            # que le falta a cada plan
+base-harness plans            # que le falta a cada plan
 base-harness check             # lo mismo, pero falla (es lo que corre CI)
 base-harness time <slug>       # lo que costo un plan
-base-harness ritmo             # el ritmo real de los planes cerrados
-base-harness donde             # que rutas esta usando, si algo no cuadra
+base-harness pace             # el ritmo real de los planes cerrados
+base-harness where             # que rutas esta usando, si algo no cuadra
 ```
 
 ## Estimating And Measuring A Plan
@@ -90,7 +90,7 @@ Nadie arranca un cronometro: sale de dos relojes que ya funcionan —la hora que
 colateral y falta de actividad, asi que **las horas de descanso no hay que
 declararlas**.
 
-El ritmo sale de los datos: `base-harness ritmo` promedia los planes ya
+El ritmo sale de los datos: `base-harness pace` promedia los planes ya
 cerrados. Mientras no haya dos planes cerrados aqui se usa el ritmo prestado
 que dice la skill `create-plan`, y se escribe en la linea que es prestado.
 

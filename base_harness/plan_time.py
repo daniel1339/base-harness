@@ -1,34 +1,36 @@
 #!/usr/bin/env python3
-"""Mide cuanto costo un plan de verdad, sin que nadie apunte nada.
+"""Measure what a plan really cost, without anyone writing anything down.
 
-Existe porque un cronometro no se arranca: cualquier medida que dependa de
-acordarse no se registra. Estas dos series ya existen y no hay que pedirlas:
+It exists because nobody starts a stopwatch: any measurement that depends on
+remembering does not get recorded. These two series already exist and nobody
+has to be asked for them:
 
-  - `pacto exec` pone la hora a cada tarea que se cierra (en `tasks.md`)
-  - `git` pone la hora a cada commit
+  - `pacto exec` stamps the time on every task it closes (in `tasks.md`)
+  - `git` stamps the time on every commit
 
-Con las dos, un hueco entre actividad es una de tres cosas, y hay que separarlas
-porque significan lo contrario:
+With both, a gap between activity is one of three things, and they have to be
+told apart because they mean opposite things:
 
-  | Hueco                      | Que es                                       |
-  |----------------------------|----------------------------------------------|
-  | Termina en cierre de tarea | TRABAJO DEL PLAN                             |
-  | Termina en commit ajeno    | COLATERAL: esfuerzo real, pero de otra cosa  |
-  | Mas largo que el umbral    | SIN ACTIVIDAD: ni commits ni tareas          |
+  | Gap                       | What it is                                   |
+  |---------------------------|----------------------------------------------|
+  | Ends in a closed task     | PLAN WORK                                    |
+  | Ends in an unrelated commit | COLLATERAL: real effort, on something else |
+  | Longer than the threshold | NO ACTIVITY: neither commits nor tasks       |
 
-Medido el 2026-08-20: entre dos tareas del plan `estados-de-ejecucion` pasaron
-2 h 48 min. Un cronometro habria dicho que esa tarea costo tres horas. Costo
-cinco minutos: en el hueco se arreglaron los tests, un 500 en produccion y una
-migracion. Ni fue la tarea, ni fue una pausa.
+Measured 2026-08-20: between two tasks of the `estados-de-ejecucion` plan,
+2 h 48 min went by. A stopwatch would have said that task cost three hours. It
+cost five minutes: the gap held a test fix, a production 500 and a migration.
+It was neither the task nor a break.
 
-LIMITE QUE HAY QUE CONOCER: pensar no deja commits. Un rato largo de analisis,
-de leer codigo o de decidir con alguien se ve exactamente igual que una comida,
-y cae en "sin actividad". Por eso la columna NO se llama pausa: dice lo unico
-que se puede afirmar, que no quedo rastro. La cifra de esfuerzo es un SUELO.
+A LIMIT WORTH KNOWING: thinking leaves no commits. A long stretch of analysis,
+of reading code or of deciding with someone looks exactly like lunch, and falls
+into "no activity". That is why the column is NOT called break: it says the
+only thing that can be claimed, that no trace was left. The effort figure is a
+FLOOR.
 
-    python3 scripts/plan-time.py <slug>          # un plan
-    python3 scripts/plan-time.py --ritmo         # el ritmo real de todos los cerrados
-    python3 scripts/plan-time.py --autotest      # comprueba la aritmetica
+    base-harness time <slug>    # one plan
+    base-harness pace           # the real pace across every closed plan
+    base-harness time --autotest  # check the arithmetic
 """
 
 from __future__ import annotations
@@ -40,305 +42,312 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# El proyecto lo fija el CLI antes de llamar a `main`. Por defecto, el
-# directorio actual: asi `python3 -m base_harness.plan_time` sigue funcionando
-# desde la raiz de un proyecto sin pasar por el CLI.
+# The project is set by the CLI before calling `main`. Current directory by
+# default, so `python3 -m base_harness.plan_time` still works from a project
+# root without going through the CLI.
 PROG = "base-harness time"
 
 ROOT = Path.cwd()
 PLANS = ROOT / ".pacto" / "plans"
 
 
-def configurar(root: Path) -> None:
-    """Fija sobre que proyecto se trabaja. La llama `bin/base-harness`."""
+def configure(root: Path) -> None:
+    """Set which project is being worked on. Called by `bin/base-harness`."""
     global ROOT, PLANS
     ROOT = root
     PLANS = root / ".pacto" / "plans"
 
-# `pacto exec` deja esta linea al cerrar una tarea. El `[N.M]` del principio no
-# lo pone pacto: es la convencion de la skill `plan-task`, y es lo unico que
-# permite saber a que tarea pertenece cada hora.
-EVIDENCIA = re.compile(r"^- (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})\s+`?\[?(\d+\.\d+)?\]?", re.M)
-TAREA = re.compile(r"^- \[([ x])\] (\d+\.\d+) (.+)$", re.M)
 
-# --- Idioma de los planes -------------------------------------------------
-# Este script lee planes escritos en castellano. Si los tuyos van en otro
-# idioma, esto es lo UNICO que hay que traducir.
+# `pacto exec` leaves this line when it closes a task. The leading `[N.M]` is
+# not pacto's: it is the convention of the `plan-task` skill, and it is the only
+# thing that tells which task each timestamp belongs to.
+EVIDENCE = re.compile(r"^- (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})\s+`?\[?(\d+\.\d+)?\]?", re.M)
+TASK = re.compile(r"^- \[([ x])\] (\d+\.\d+) (.+)$", re.M)
+
+# --- Language of the plans -------------------------------------------------
+# This script reads plans written in Spanish. If yours are in another language,
+# this block is the ONLY thing to translate.
 #
-# Y hay que traducirlo, porque no traducirlo **no da error**: el script sigue
-# corriendo, clasifica todas las tareas como "construir" y produce un desglose
-# creible y vacio, que es peor que no tener ninguno. `PALABRA_ESTIMACION` tiene
-# que coincidir ademas con la que busca `scripts/plans-check.py`.
-PALABRA_ESTIMACION = r"Estimaci[oó]n"
-PALABRAS_DECIDIR = r"resolver|decidir|declarar|reconocimiento|enumerar|checklist|acotar"
-PALABRAS_VERIFICAR = r"verificar|confirmar|revisar|comprobar"
-PALABRA_CIERRE = "cierra"   # en el asunto de un commit: lo marca como del plan
+# And it has to be translated, because not translating it **raises no error**:
+# the script keeps running, classifies every task as "build" and produces a
+# believable, empty breakdown, which is worse than having none. `ESTIMATE_WORD`
+# must also match the one `plans_check.py` looks for.
+ESTIMATE_WORD = r"Estimaci[oó]n"
+DECIDE_WORDS = r"resolver|decidir|declarar|reconocimiento|enumerar|checklist|acotar"
+VERIFY_WORDS = r"verificar|confirmar|revisar|comprobar"
+CLOSING_WORD = "cierra"   # in a commit subject: marks it as belonging to the plan
 
-ESTIMACION = re.compile(rf"^- {PALABRA_ESTIMACION}:\s*([\d.,]+)\s*h", re.M | re.I)
+ESTIMATE = re.compile(rf"^- {ESTIMATE_WORD}:\s*([\d.,]+)\s*h", re.M | re.I)
 
-# Que clase de trabajo es cada tarea, por lo que dice. Sirve para responder la
-# pregunta que mas cambia como se trabaja: si el tiempo se va en decidir o en
-# construir.
-DECIDIR = re.compile(PALABRAS_DECIDIR, re.I)
-VERIFICAR = re.compile(PALABRAS_VERIFICAR, re.I)
+# What kind of work each task is, judged by what it says. It answers the
+# question that changes how people work the most: whether the time goes into
+# deciding or into building.
+DECIDE = re.compile(DECIDE_WORDS, re.I)
+VERIFY = re.compile(VERIFY_WORDS, re.I)
 
-
-def clase_de(texto: str) -> str:
-    if DECIDIR.search(texto):
-        return "decidir"
-    if VERIFICAR.search(texto):
-        return "verificar"
-    return "construir"
+KINDS = ("decide", "build", "verify")
 
 
-def buscar_plan(slug: str) -> Path | None:
+def kind_of(text: str) -> str:
+    if DECIDE.search(text):
+        return "decide"
+    if VERIFY.search(text):
+        return "verify"
+    return "build"
+
+
+def find_plan(slug: str) -> Path | None:
     for tasks in PLANS.glob(f"*/{slug}/tasks.md"):
         return tasks
     return None
 
 
-def commits_en(desde: datetime, hasta: datetime, slug: str):
-    """Commits del intervalo, marcando cuales son del plan.
+def commits_between(since: datetime, until: datetime, slug: str):
+    """Commits in the interval, marking which ones belong to the plan.
 
-    Un commit es del plan si nombra su slug o dice que cierra una tarea. El
-    resto es colateral: trabajo real ocurrido mientras, pero de otra cosa.
+    A commit belongs to the plan if it names its slug or says it closes a task.
+    The rest is collateral: real work that happened meanwhile, on something else.
     """
-    salida = subprocess.run(
-        ["git", "log", "--since", desde.isoformat(), "--until", hasta.isoformat(),
+    output = subprocess.run(
+        ["git", "log", "--since", since.isoformat(), "--until", until.isoformat(),
          "--pretty=%at%x09%s%x09%b", "--all"],
         cwd=ROOT, capture_output=True, text=True,
     ).stdout
-    fuera = []
-    for linea in salida.splitlines():
-        ts, _, resto = linea.partition("\t")
+    found = []
+    for line in output.splitlines():
+        timestamp, _, rest = line.partition("\t")
         try:
-            cuando = datetime.fromtimestamp(int(ts))
+            when = datetime.fromtimestamp(int(timestamp))
         except ValueError:
             continue
-        texto = resto.lower()
-        propio = slug in texto or PALABRA_CIERRE in texto
-        fuera.append((cuando, "plan" if propio else "colateral", None))
-    return fuera
+        text = rest.lower()
+        own = slug in text or CLOSING_WORD in text
+        found.append((when, "plan" if own else "collateral", None))
+    return found
 
 
-def repartir(eventos, umbral_min: int):
-    """El nucleo: reparte los huecos entre las tres cestas.
+def split_gaps(events, threshold_min: int):
+    """The core: split the gaps across the three buckets.
 
-    Separado a proposito para poder comprobarlo sin git ni ficheros (--autotest).
-    Equivocarse aqui produce numeros creibles y falsos, que es lo peor que puede
-    pasarle a una medicion.
+    Kept separate on purpose so it can be checked without git or files
+    (--autotest). Getting it wrong produces believable, false numbers, which is
+    the worst thing that can happen to a measurement.
     """
-    umbral = timedelta(minutes=umbral_min)
-    cestas = {"plan": timedelta(), "colateral": timedelta(), "sin_actividad": timedelta()}
-    por_clase: dict[str, timedelta] = {}
+    threshold = timedelta(minutes=threshold_min)
+    buckets = {"plan": timedelta(), "collateral": timedelta(), "no_activity": timedelta()}
+    by_kind: dict[str, timedelta] = {}
 
-    for (t0, _, _), (t1, tipo, clase) in zip(eventos, eventos[1:]):
-        hueco = t1 - t0
-        if hueco > umbral:
-            cestas["sin_actividad"] += hueco
-        elif tipo == "plan":
-            cestas["plan"] += hueco
-            if clase:
-                por_clase[clase] = por_clase.get(clase, timedelta()) + hueco
+    for (t0, _, _), (t1, bucket, kind) in zip(events, events[1:]):
+        gap = t1 - t0
+        if gap > threshold:
+            buckets["no_activity"] += gap
+        elif bucket == "plan":
+            buckets["plan"] += gap
+            if kind:
+                by_kind[kind] = by_kind.get(kind, timedelta()) + gap
         else:
-            cestas["colateral"] += hueco
-    return cestas, por_clase
+            buckets["collateral"] += gap
+    return buckets, by_kind
 
 
-def medir(tasks: Path, slug: str, umbral_min: int):
-    texto = tasks.read_text()
+def measure(tasks: Path, slug: str, threshold_min: int):
+    text = tasks.read_text()
 
-    clases = {num: clase_de(txt) for _, num, txt in TAREA.findall(texto)}
+    kinds = {number: kind_of(title) for _, number, title in TASK.findall(text)}
 
-    marcas = []
-    for d, h, num in EVIDENCIA.findall(texto):
-        marcas.append((datetime.strptime(f"{d} {h}", "%Y-%m-%d %H:%M"),
-                       "plan", clases.get(num) if num else None))
-    if len(marcas) < 2:
+    marks = []
+    for day, hour, number in EVIDENCE.findall(text):
+        marks.append((datetime.strptime(f"{day} {hour}", "%Y-%m-%d %H:%M"),
+                      "plan", kinds.get(number) if number else None))
+    if len(marks) < 2:
         return None
 
-    # Se ordena por fecha y se desempata con texto, **nunca con la clase cruda**:
-    # una nota de ejecucion sin prefijo `[N.M]` no tiene tarea, asi que su clase
-    # es None, y en cuanto coincidia en fecha con otra marca el sort comparaba
-    # None con una cadena y reventaba. Se vio el 2026-08-25 cerrando
-    # `brain-agente-maestro`, que es justo cuando este script hace falta.
-    eventos = sorted(
-        marcas + commits_en(
-            min(m[0] for m in marcas),
-            max(m[0] for m in marcas) + timedelta(minutes=1),
+    # Sorted by date, breaking ties with text and **never with the raw kind**:
+    # an execution note without the `[N.M]` prefix has no task, so its kind is
+    # None, and as soon as it shared a date with another mark the sort compared
+    # None against a string and blew up. Seen 2026-08-25 closing
+    # `brain-agente-maestro`, which is exactly when this script is needed.
+    events = sorted(
+        marks + commits_between(
+            min(m[0] for m in marks),
+            max(m[0] for m in marks) + timedelta(minutes=1),
             slug),
-        key=lambda e: (e[0], str(e[1] or ""), str(e[2] or "")),
+        key=lambda event: (event[0], str(event[1] or ""), str(event[2] or "")),
     )
-    cestas, por_clase = repartir(eventos, umbral_min)
+    buckets, by_kind = split_gaps(events, threshold_min)
 
-    tareas = TAREA.findall(texto)
-    est = ESTIMACION.search(texto)
+    tasks_found = TASK.findall(text)
+    estimate = ESTIMATE.search(text)
     return {
-        "estado": tasks.parent.parent.name,
-        "tareas": len(tareas),
-        "cerradas": sum(1 for m, _, _ in tareas if m == "x"),
-        "inicio": min(m[0] for m in marcas),
-        "fin": max(m[0] for m in marcas),
-        "con_numero": sum(1 for _, _, c in marcas if c),
-        **cestas,
-        "por_clase": por_clase,
-        "estimacion": float(est.group(1).replace(",", ".")) if est else None,
+        "state": tasks.parent.parent.name,
+        "tasks": len(tasks_found),
+        "closed": sum(1 for mark, _, _ in tasks_found if mark == "x"),
+        "start": min(m[0] for m in marks),
+        "end": max(m[0] for m in marks),
+        "numbered": sum(1 for _, _, kind in marks if kind),
+        **buckets,
+        "by_kind": by_kind,
+        "estimate": float(estimate.group(1).replace(",", ".")) if estimate else None,
     }
 
 
-def horas(d: timedelta) -> float:
-    return round(d.total_seconds() / 3600, 1)
+def hours(delta: timedelta) -> float:
+    return round(delta.total_seconds() / 3600, 1)
 
 
-def ritmo_medido(umbral_min: int):
-    """El ritmo real de los planes ya cerrados.
+def measured_pace(threshold_min: int):
+    """The real pace across plans already closed.
 
-    Es lo que hace que el sistema se afine solo: la estimacion del plan
-    siguiente sale de lo que costaron los anteriores, no del criterio de nadie.
+    This is what makes the system tune itself: the next plan's estimate comes
+    from what the previous ones cost, not from anyone's judgement.
     """
-    total_min = 0.0
-    total_tareas = 0
-    planes = []
-    descartados = []
+    total_minutes = 0.0
+    total_tasks = 0
+    plans = []
+    discarded = []
     for tasks in sorted(PLANS.glob("done/*/tasks.md")):
-        m = medir(tasks, tasks.parent.name, umbral_min)
-        if not m or not m["cerradas"]:
+        result = measure(tasks, tasks.parent.name, threshold_min)
+        if not result or not result["closed"]:
             continue
-        minutos = m["plan"].total_seconds() / 60
-        esfuerzo = m["plan"] + m["colateral"]
+        minutes = result["plan"].total_seconds() / 60
+        effort = result["plan"] + result["collateral"]
 
-        # Un plan ejecutado a ratos durante semanas no se puede medir asi: casi
-        # todo cae en "sin actividad" y el poco tiempo que queda produce un
-        # ritmo falso. Mejor descartarlo y decirlo que promediar basura.
-        if esfuerzo.total_seconds() and m["sin_actividad"] > esfuerzo * 5:
-            descartados.append((tasks.parent.name, "ejecutado a ratos, no en sesiones"))
+        # A plan executed in dribs and drabs over weeks cannot be measured this
+        # way: almost everything falls into "no activity" and the little time
+        # left produces a false pace. Better to drop it and say so than to
+        # average garbage.
+        if effort.total_seconds() and result["no_activity"] > effort * 5:
+            discarded.append((tasks.parent.name, "run in scattered bits, not in sessions"))
             continue
 
-        total_min += minutos
-        total_tareas += m["cerradas"]
-        planes.append((tasks.parent.name, m["cerradas"], minutos / m["cerradas"]))
-    return planes, (total_min / total_tareas if total_tareas else None), descartados
+        total_minutes += minutes
+        total_tasks += result["closed"]
+        plans.append((tasks.parent.name, result["closed"], minutes / result["closed"]))
+    return plans, (total_minutes / total_tasks if total_tasks else None), discarded
 
 
-def informe(slug: str, umbral_min: int) -> int:
-    tasks = buscar_plan(slug)
+def report(slug: str, threshold_min: int) -> int:
+    tasks = find_plan(slug)
     if tasks is None:
-        print(f"no encuentro el plan '{slug}'")
+        print(f"cannot find the plan '{slug}'")
         return 1
-    m = medir(tasks, slug, umbral_min)
-    if m is None:
-        print(f"{slug}: menos de dos tareas cerradas, todavia no hay nada que medir")
+    result = measure(tasks, slug, threshold_min)
+    if result is None:
+        print(f"{slug}: fewer than two closed tasks, nothing to measure yet")
         return 0
 
-    total = m["plan"] + m["colateral"]
-    print(f"\n{slug}  ({m['cerradas']}/{m['tareas']} tareas · {m['estado']})")
-    print(f"  del {m['inicio']:%d/%m %H:%M} al {m['fin']:%d/%m %H:%M}")
+    total = result["plan"] + result["collateral"]
+    print(f"\n{slug}  ({result['closed']}/{result['tasks']} tasks · {result['state']})")
+    print(f"  from {result['start']:%d/%m %H:%M} to {result['end']:%d/%m %H:%M}")
     print()
-    print(f"  trabajo del plan     {horas(m['plan']):6.1f} h")
-    print(f"  colateral            {horas(m['colateral']):6.1f} h", end="")
-    print(f"   ({100 * m['colateral'] / total:.0f}% del esfuerzo)" if total.total_seconds() else "")
-    print(f"  sin actividad        {horas(m['sin_actividad']):6.1f} h   (descanso, o analisis sin commits)")
+    print(f"  plan work            {hours(result['plan']):6.1f} h")
+    print(f"  collateral           {hours(result['collateral']):6.1f} h", end="")
+    print(f"   ({100 * result['collateral'] / total:.0f}% of the effort)"
+          if total.total_seconds() else "")
+    print(f"  no activity          {hours(result['no_activity']):6.1f} h   "
+          f"(rest, or analysis leaving no commits)")
     print(f"  {'-' * 30}")
-    print(f"  esfuerzo registrado  {horas(total):6.1f} h   (suelo: lo que dejo rastro)")
+    print(f"  recorded effort      {hours(total):6.1f} h   (a floor: what left a trace)")
 
-    if m["por_clase"]:
-        print("\n  en que se fue el tiempo del plan:")
-        for clase in ("decidir", "construir", "verificar"):
-            if clase in m["por_clase"]:
-                d = m["por_clase"][clase]
-                print(f"    {clase:11} {horas(d):5.1f} h  ({100 * d / m['plan']:.0f}%)")
-    elif m["cerradas"]:
-        print("\n  sin desglose: la evidencia no empieza por `[N.M]` (ver skill plan-task)")
+    if result["by_kind"]:
+        print("\n  where the plan's time went:")
+        for kind in KINDS:
+            if kind in result["by_kind"]:
+                spent = result["by_kind"][kind]
+                print(f"    {kind:11} {hours(spent):5.1f} h  ({100 * spent / result['plan']:.0f}%)")
+    elif result["closed"]:
+        print("\n  no breakdown: the evidence does not start with `[N.M]` (see the plan-task skill)")
 
-    if m["cerradas"]:
-        ritmo = m["plan"].total_seconds() / 60 / m["cerradas"]
-        print(f"\n  ritmo: {ritmo:.0f} min por tarea")
-        _, media, _ = ritmo_medido(umbral_min)
-        if media:
-            print(f"  media de los planes cerrados: {media:.0f} min por tarea")
+    if result["closed"]:
+        pace = result["plan"].total_seconds() / 60 / result["closed"]
+        print(f"\n  pace: {pace:.0f} min per task")
+        _, average, _ = measured_pace(threshold_min)
+        if average:
+            print(f"  average across closed plans: {average:.0f} min per task")
 
-    if m["estimacion"]:
-        real = horas(m["plan"])
-        desvio = 100 * (real - m["estimacion"]) / m["estimacion"]
-        print(f"\n  estimado {m['estimacion']:.1f} h  ->  llevamos {real:.1f} h   desvio {desvio:+.0f}%")
+    if result["estimate"]:
+        real = hours(result["plan"])
+        drift = 100 * (real - result["estimate"]) / result["estimate"]
+        print(f"\n  estimated {result['estimate']:.1f} h  ->  {real:.1f} h so far   drift {drift:+.0f}%")
 
-        # Aviso a mitad de vuelo: saber el desvio cuando el plan ya termino no
-        # sirve para nada. Con la mitad hecha ya se puede proyectar.
-        pendientes = m["tareas"] - m["cerradas"]
-        if pendientes and m["cerradas"]:
-            proyeccion = real / m["cerradas"] * m["tareas"]
-            print(f"  proyeccion a las {m['tareas']} tareas: {proyeccion:.1f} h", end="")
-            if proyeccion > m["estimacion"] * 1.2:
-                print(f"   <-- se va a pasar un {100 * (proyeccion / m['estimacion'] - 1):.0f}%")
+        # A mid-flight warning: knowing the drift once the plan is over is
+        # useless. With half of it done it can already be projected.
+        remaining = result["tasks"] - result["closed"]
+        if remaining and result["closed"]:
+            projection = real / result["closed"] * result["tasks"]
+            print(f"  projection over {result['tasks']} tasks: {projection:.1f} h", end="")
+            if projection > result["estimate"] * 1.2:
+                print(f"   <-- heading {100 * (projection / result['estimate'] - 1):.0f}% over")
             else:
-                print("   (dentro de lo estimado)")
+                print("   (within the estimate)")
     else:
-        print("\n  sin estimacion escrita: anade `- Estimación: N h` en los metadatos de tasks.md")
+        print("\n  no estimate written: add `- Estimación: N h` to the metadata of tasks.md")
     return 0
 
 
 def autotest() -> int:
-    """Comprueba el reparto con horas inventadas.
+    """Check the gap split with made-up times.
 
-    La aritmetica de intervalos falla en silencio: produce numeros creibles y
-    falsos. Esto la fija.
+    Interval arithmetic fails silently: it produces believable, false numbers.
+    This pins it down.
     """
-    t = lambda h, m: datetime(2026, 1, 1, h, m)
-    ev = [
-        (t(9, 0), "plan", "decidir"),      # arranque
-        (t(9, 30), "plan", "decidir"),     # 30 min decidiendo
-        (t(9, 50), "colateral", None),     # 20 min de otra cosa
-        (t(12, 0), "plan", "construir"),   # 130 min sin nada -> sin actividad
-        (t(12, 20), "plan", "construir"),  # 20 min construyendo
+    at = lambda hour, minute: datetime(2026, 1, 1, hour, minute)
+    events = [
+        (at(9, 0), "plan", "decide"),      # start
+        (at(9, 30), "plan", "decide"),     # 30 min deciding
+        (at(9, 50), "collateral", None),   # 20 min on something else
+        (at(12, 0), "plan", "build"),      # 130 min of nothing -> no activity
+        (at(12, 20), "plan", "build"),     # 20 min building
     ]
-    cestas, clases = repartir(ev, 60)
-    fallos = []
-    esperado = {"plan": 50, "colateral": 20, "sin_actividad": 130}
-    for k, v in esperado.items():
-        real = cestas[k].total_seconds() / 60
-        if real != v:
-            fallos.append(f"{k}: esperaba {v} min, salio {real:.0f}")
-    if clases.get("decidir", timedelta()).total_seconds() / 60 != 30:
-        fallos.append("decidir: esperaba 30 min")
-    if clases.get("construir", timedelta()).total_seconds() / 60 != 20:
-        fallos.append("construir: esperaba 20 min")
+    buckets, kinds = split_gaps(events, 60)
+    failures = []
+    expected = {"plan": 50, "collateral": 20, "no_activity": 130}
+    for bucket, minutes in expected.items():
+        real = buckets[bucket].total_seconds() / 60
+        if real != minutes:
+            failures.append(f"{bucket}: expected {minutes} min, got {real:.0f}")
+    if kinds.get("decide", timedelta()).total_seconds() / 60 != 30:
+        failures.append("decide: expected 30 min")
+    if kinds.get("build", timedelta()).total_seconds() / 60 != 20:
+        failures.append("build: expected 20 min")
 
-    for f in fallos:
-        print(f"  FALLO  {f}")
-    print("  autotest: correcto" if not fallos else f"  autotest: {len(fallos)} fallos")
-    return 1 if fallos else 0
+    for failure in failures:
+        print(f"  FAIL  {failure}")
+    print("  autotest: correct" if not failures else f"  autotest: {len(failures)} failures")
+    return 1 if failures else 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog=PROG)
-    ap.add_argument("slug", nargs="?")
-    ap.add_argument("--umbral", type=int, default=60,
-                    help="minutos sin actividad a partir de los cuales no se cuenta (por defecto 60)")
-    ap.add_argument("--ritmo", action="store_true", help="ritmo real de los planes ya cerrados")
-    ap.add_argument("--autotest", action="store_true", help="comprueba la aritmetica del reparto")
-    args = ap.parse_args(argv)
+    parser = argparse.ArgumentParser(prog=PROG)
+    parser.add_argument("slug", nargs="?")
+    parser.add_argument("--threshold", type=int, default=60,
+                        help="minutes without activity beyond which time is not counted (default 60)")
+    parser.add_argument("--pace", action="store_true", help="real pace across plans already closed")
+    parser.add_argument("--autotest", action="store_true", help="check the gap-split arithmetic")
+    args = parser.parse_args(argv)
 
     if args.autotest:
         return autotest()
 
-    if args.ritmo:
-        planes, media, descartados = ritmo_medido(args.umbral)
-        if not planes:
-            print("todavia no hay planes cerrados con medicion")
+    if args.pace:
+        plans, average, discarded = measured_pace(args.threshold)
+        if not plans:
+            print("no closed plans with measurement yet")
             return 0
-        print("\nritmo real de los planes cerrados")
-        for n, tareas, r in planes:
-            print(f"  {n:34} {tareas:3} tareas   {r:5.1f} min/tarea")
-        print(f"\n  media: {media:.1f} min por tarea   ({sum(p[1] for p in planes)} tareas medidas)")
-        print(f"  usar esta cifra al estimar el siguiente plan, no una del pasado")
-        for n, por in descartados:
-            print(f"\n  descartado {n}: {por}")
+        print("\nreal pace across closed plans")
+        for name, tasks, pace in plans:
+            print(f"  {name:34} {tasks:3} tasks   {pace:5.1f} min/task")
+        print(f"\n  average: {average:.1f} min per task   "
+              f"({sum(plan[1] for plan in plans)} tasks measured)")
+        print(f"  use this figure to estimate the next plan, not one from the past")
+        for name, why in discarded:
+            print(f"\n  discarded {name}: {why}")
         return 0
 
     if not args.slug:
-        ap.print_help()
+        parser.print_help()
         return 1
-    return informe(args.slug, args.umbral)
+    return report(args.slug, args.threshold)
 
 
 if __name__ == "__main__":

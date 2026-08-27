@@ -116,7 +116,7 @@ se crea**:
 horas = tareas x ritmo medido x factor / 60
 ```
 
-**El ritmo no se inventa**: sale de `base-harness ritmo`, que promedia los
+**El ritmo no se inventa**: sale de `base-harness pace`, que promedia los
 planes ya cerrados de este repositorio.
 
 > **Mientras no haya dos planes cerrados aqui**, `--ritmo` no tiene con que
