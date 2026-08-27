@@ -164,9 +164,9 @@ def main() -> int:
                 )
 
         # Un plan cerrado sin su medicion real pierde la unica informacion que
-        # hace mejor la estimacion siguiente. Y depender de acordarse ya fallo
-        # dos veces en este repositorio: el hook de harness-sync y el checklist
-        # de documentacion.
+        # hace mejor la estimacion siguiente. Y depender de acordarse ya ha
+        # fallado antes: un hook que debia dispararse solo y no lo hizo, y un
+        # checklist de documentacion que nadie repasaba.
         if spec.parent.parent.name == "done" and "Real:" not in body:
             bucket.append(
                 f"{slug}: plan cerrado sin medicion real -> corre "

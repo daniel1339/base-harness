@@ -3,47 +3,50 @@
 Date: <!-- RELLENA: YYYY-MM-DD -->
 
 Fuente unica de verdad para el contexto de agentes en este repositorio.
-Cualquier herramienta LLM lee este archivo: Codex y Cursor de forma nativa,
-Claude Code y Copilot a traves de copias generadas (`CLAUDE.md`,
-`.github/copilot-instructions.md`).
+**Este archivo es el contrato, y no tiene copias.** Cualquier herramienta LLM
+lo lee: Codex, Cursor, Zed, Aider y las demas de forma nativa; Claude Code a
+traves de un `CLAUDE.md` de una linea que lo importa.
 
 ## Read This First
 
 - Este archivo primero: arquitectura, comandos y forma de trabajar.
 - Al editar dentro de un subproyecto, lee tambien su `AGENTS.md` anidado.
 
-## Harness Layout
+## Skills
 
-Cada archivo es **canonico** (escrito a mano, existe una vez) o **generado**
-(envuelto en marcadores managed, nunca se edita a mano). No hay copias
-manuales.
+Los procedimientos largos no viven aqui: viven en `.claude/skills/`, uno por
+carpeta, y se leen **solo cuando hacen falta**. Este archivo viaja en cada
+turno; una skill, solo cuando toca.
 
-- `AGENTS.md` (este archivo) y los `AGENTS.md` anidados: contrato canonico
-- `harness/skills/`: skills canonicas, copiadas a `.claude/`, `.cursor/` y
-  `.agents/` por el generador — el formato `SKILL.md` es comun a las tres
-- `.claude/agents/`: subagentes (solo Claude Code; sin equivalente en el resto)
-- `.cursor/rules/`, `.agent/rules/`, `.kilocode/rules/`: punteros generados
-- `make harness-check` verifica el arbol; CI falla si deriva
+| Lee esta skill | Cuando |
+|---|---|
+| `.claude/skills/create-plan/SKILL.md` | Vayas a escribir un plan, o a darle estructura a uno que no la tiene |
+| `.claude/skills/plan-task/SKILL.md` | Vayas a ejecutar o cerrar una tarea `N.M` de un plan |
 
-Nunca edites entre `managed:start` / `managed:end`, y nunca copies una skill
-de un directorio de herramienta a otro: se anade a `harness/skills/`.
+Son archivos `SKILL.md` normales, sin nada especifico de ninguna IA. Claude
+Code las registra solo por estar en esa ruta; cualquier otra herramienta las
+lee desde aqui, que es para lo que existe esta tabla.
 
-### Pacto
+**No se copian a `.cursor/`, `.agents/` ni a ningun otro directorio.** Una copia
+por herramienta deriva de las demas, y a partir de ese momento cada agente
+trabaja con una version distinta sin que nadie lo note.
 
-Los planes viven en `.pacto/plans/`, gobernados por la CLI `pacto`. Es el
-segundo generador del repo: crea sus propias skills `pacto-*`, y `harness-sync`
-no toca sus archivos ni al reves.
+## Pacto
 
-Un plan es ejecutable cuando su carpeta lleva `spec.md`, `design.md` y
-`tasks.md` con tareas numeradas `N.M`: ese numero es lo unico que `pacto exec`
-puede apuntar. No lo juzgues a ojo —`pacto status --root .pacto/plans
---repo-root .` dice cuantas tareas tiene cada plan, y `0` significa que no hay
-nada que ejecutar.
+Los planes viven en `.pacto/plans/`, gobernados por la CLI `pacto`, que genera
+sus propias skills `pacto-*`. Un plan es ejecutable cuando su carpeta lleva
+`spec.md`, `design.md` y `tasks.md` con tareas numeradas `N.M`: ese numero es lo
+unico que `pacto exec` puede apuntar.
 
-Dos skills se reparten el trabajo, y la frontera es la estructura:
+No lo juzgues a ojo:
 
-- `create-plan` — escribir un plan nuevo, o darle a uno viejo lo que le falta
-- `plan-task` — ejecutar la tarea `N.M`: implementar, probar, dejar evidencia
+```bash
+pacto status --root .pacto/plans --repo-root . --format table
+```
+
+Un plan con `0` tareas no tiene nada que ejecutar. Y ojo con el falso verde: el
+scaffold de `pacto new` deja una tarea `1.1 <tarea>` que cuenta como tarea sin
+serlo.
 
 Una tarea se cierra con evidencia que `pacto status` pueda re-verificar
 —`paths`, `symbols`, `endpoints`, `test_refs`—, nunca con prosa que diga que
@@ -63,18 +66,15 @@ esta hecha.
 
 <!-- RELLENA: como se levanta, como se prueba, como se despliega -->
 
-### Harness
+### Comprobaciones del harness
 
 `make` es un atajo y no esta instalado en todas partes; el script siempre
 funciona, y es lo que llama CI.
 
 ```bash
-python3 scripts/harness-sync.py            # regenera los adaptadores
-python3 scripts/harness-sync.py --check    # falla si uno esta stale
 python3 scripts/plans-check.py --check     # falla si un plan no trae lo suyo
-
-make harness-sync                          # equivalentes, si tienes make
-make harness-check
+python3 scripts/plan-time.py <slug>        # lo que costo un plan
+python3 scripts/plan-time.py --ritmo       # el ritmo real de los cerrados
 ```
 
 ## Estimating And Measuring A Plan
@@ -89,8 +89,8 @@ colateral y falta de actividad, asi que **las horas de descanso no hay que
 declararlas**.
 
 El ritmo sale de los datos: `plan-time.py --ritmo` promedia los planes ya
-cerrados. Mientras no haya dos planes cerrados aqui, se usa el ritmo prestado
-que diga la skill `create-plan`, y se dice en la linea que es prestado.
+cerrados. Mientras no haya dos planes cerrados aqui se usa el ritmo prestado
+que dice la skill `create-plan`, y se escribe en la linea que es prestado.
 
 ## Building A Feature
 
@@ -119,14 +119,13 @@ cerrar, y `scripts/plans-check.py` falla en CI cuando un plan no las lleva.
 ## How to Explore Efficiently
 
 1. Este archivo, y luego el `AGENTS.md` del area que vas a tocar
-2. Busqueda semantica para "como / donde / que"
-3. `rg` para simbolos y texto exacto
-4. Lecturas pequenas y dirigidas, nunca archivos enteros grandes
-5. Delega las lecturas anchas a un subagente en vez de traerlas a la conversacion
+2. `rg` para simbolos y texto exacto
+3. Lecturas pequenas y dirigidas, nunca archivos enteros grandes
+4. Delega las lecturas anchas a un subagente en vez de traerlas a la conversacion
 
 ## Git Conventions
 
 - Prefijo en todo commit: `feat:`, `fix:`, `change:`, `docs:`, `refactor:`
 - Mensajes cortos y utiles
-- Mira `git status` antes de preparar el commit, y evita `git add .`: los
-  generadores dejan cambios en el arbol que no son tuyos
+- Mira `git status` antes de preparar el commit, y evita `git add .`: pacto deja
+  cambios en el arbol que no son tuyos

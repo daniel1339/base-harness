@@ -38,27 +38,25 @@ echo
 if ! git -C "$DESTINO" rev-parse --git-dir >/dev/null 2>&1; then
   echo "  AVISO: el destino no es un repositorio git."
   echo "  plan-time.py mide el trabajo colateral desde git log; sin repo mide"
-  echo "  la mitad. Antes de la primera tarea:  git -C $DESTINO init"
+  echo "  la mitad. Antes de la primera tarea:  git -C \"$DESTINO\" init"
   echo
 fi
 
 cat <<'HUECOS'
-Tres huecos que rellenar, en este orden:
+Dos huecos que rellenar:
 
-  1. AGENTS.md          los limites del proyecto ("esto NO lo hacemos"),
-                        el mapa del repo y los comandos
-  2. scripts/harness-sync.py    la linea TOOLS = {...}: deja solo las
-                        herramientas que uses de verdad
-  3. harness/skills/create-plan/SKILL.md    el ritmo prestado (5,0 min/tarea)
-                        se pisa con `plan-time.py --ritmo` al cerrar dos planes
+  1. AGENTS.md   los limites del proyecto ("esto NO lo hacemos"), el mapa del
+                 repo y los comandos. Lo demas ya viene escrito.
+
+  2. .claude/skills/create-plan/SKILL.md   el ritmo prestado (5,0 min/tarea)
+                 se pisa con `plan-time.py --ritmo` al cerrar dos planes.
+
+Y comprueba una sola vez que Claude Code sigue el puntero, preguntandole:
+"segun AGENTS.md, que limites tiene este proyecto?". Si contesta, CLAUDE.md
+esta importando bien y no hay nada mas que mantener.
 
 Luego:
 
   pacto init                                 # si no lo has hecho
-  python3 scripts/harness-sync.py            # genera los adaptadores
-  python3 scripts/harness-sync.py --check
   python3 scripts/plans-check.py
-
-(`make harness-sync` y `make harness-check` hacen lo mismo, si tienes make:
-no esta instalado en todas partes, y por eso CI llama a los scripts.)
 HUECOS
