@@ -200,6 +200,38 @@ Y otra al cerrar:
 La lista del principio es lo que hace verificable el cierre. Sin ella, "esta
 todo documentado" es una opinion.
 
+## Probar es parte de construir
+
+Documentar tiene sus dos puntas —una lista al principio y su verificacion al
+cerrar— y **probar solo tenia el final**: `plan-task` pide un `test_ref` verde
+para cerrar cada tarea, pero nada obligaba a decidir antes que habia que
+demostrar. Asi, quien cierra la tarea escribe el test que la pone verde, y
+"funciona" acaba significando "pasa el test que me invente", que es justo lo que
+la regla de documentacion existe para evitar.
+
+Mismas dos tareas, aplicadas a probar. Una al principio:
+
+```markdown
+- [ ] 1.N Enumerar que hay que demostrar para decir que este plan funciona: por
+      cada capacidad, la comprobacion que la prueba y a que nivel. Es la lista
+      contra la que se comprueba el cierre.
+```
+
+Y otra al cerrar:
+
+```markdown
+- [ ] N.M Verificar que cada comprobacion de la lista existe y salio verde, con
+      su `test_ref`. Una que no se pueda senalar no esta hecha.
+```
+
+**Una capacidad sin comprobacion en esa lista no se construye**: o se le anade
+una, o se saca del alcance. Es la decision que se puede discutir mientras se
+escribe el plan y ya no cuando hay que cerrarlo.
+
+Que nivel es el correcto lo dice lo que se esta construyendo, no una regla fija.
+Sirve la pregunta: **si esto se rompe, ¿por donde se enteraria alguien?** Si la
+respuesta es "un usuario", la comprobacion esta demasiado arriba.
+
 ## Llevar a contrato un plan que ya existe
 
 Un plan viejo no suele estar caduco de contenido: le falta la estructura que
